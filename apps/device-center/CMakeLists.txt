@@ -12,8 +12,6 @@ set(CMAKE_AUTORCC ON)
 
 option(SONY_REQUIRE_QT
     "Fail configuration when Qt 6 is missing instead of skipping the desktop app" OFF)
-option(SONY_MACOS_DEPLOY_QT
-    "Bundle the Qt runtime and QML imports into the installed macOS app" ON)
 
 find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 QUIET)
 
@@ -27,6 +25,8 @@ if(NOT Qt6_FOUND)
     return()
 endif()
 
+qt_standard_project_setup()
+
 add_executable(sony-device-center
     main.cpp
     src/DeviceCenterController.cpp
@@ -34,6 +34,13 @@ add_executable(sony-device-center
     src/I18nManager.cpp
     include/I18nManager.h
     qml.qrc
+)
+
+qt_add_qml_module(sony-device-center
+    URI SonyDeviceCenter
+    VERSION 1.0
+    QML_FILES
+        qml/Main.qml
 )
 
 target_compile_features(sony-device-center PRIVATE cxx_std_20)
@@ -60,12 +67,6 @@ target_link_libraries(sony-device-center
         Threads::Threads
 )
 
-add_custom_command(TARGET sony-device-center POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../Client/resources/devices"
-        "$<TARGET_FILE_DIR:sony-device-center>/resources/devices"
-    COMMENT "Copying device hero assets for device-center")
-
 if(APPLE)
     # Ships the brand icon inside the .app and makes the previously unused
     # packaging/macos/Info.plist.in the bundle's real property list.
@@ -88,30 +89,15 @@ install(TARGETS sony-device-center
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE  DESTINATION .)
 
-if(APPLE AND SONY_MACOS_DEPLOY_QT)
-    # macdeployqt must run against the installed bundle so CPack's staging
-    # directory receives Qt frameworks, plugins, and all QML imports.
-    get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
-    get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
-    find_program(MACDEPLOYQT_EXECUTABLE macdeployqt HINTS "${_qt_bin}")
-
-    if(MACDEPLOYQT_EXECUTABLE)
-        install(CODE "
-            execute_process(
-                COMMAND \"${MACDEPLOYQT_EXECUTABLE}\"
-                    \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/sony-device-center.app\"
-                    -qmldir=\"${CMAKE_CURRENT_SOURCE_DIR}/qml\"
-                    -always-overwrite
-                RESULT_VARIABLE _macdeployqt_result
-            )
-            if(NOT _macdeployqt_result EQUAL 0)
-                message(FATAL_ERROR \"macdeployqt failed with exit code \${_macdeployqt_result}\")
-            endif()
-        ")
-    else()
-        message(WARNING "macdeployqt not found - the macOS package will not include the Qt runtime.")
-    endif()
-endif()
+# Qt's generated deployment script resolves only this application's QML
+# module graph and runtime dependencies. This replaces a raw macdeployqt scan
+# that copied unrelated Homebrew Qt plugins and produced an invalid bundle.
+qt_generate_deploy_qml_app_script(
+    TARGET sony-device-center
+    OUTPUT_SCRIPT sony_device_center_deploy_script
+    NO_TRANSLATIONS
+)
+install(SCRIPT "${sony_device_center_deploy_script}")
 
 if(WIN32)
     # A bare .exe cannot start without the Qt DLLs and QML module tree beside
