@@ -25,7 +25,6 @@ if(NOT Qt6_FOUND)
     return()
 endif()
 
-
 add_executable(sony-device-center
     main.cpp
     src/DeviceCenterController.cpp
@@ -59,12 +58,6 @@ target_link_libraries(sony-device-center
         Threads::Threads
 )
 
-add_custom_command(TARGET sony-device-center POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../Client/resources/devices"
-        "$<TARGET_FILE_DIR:sony-device-center>/resources/devices"
-    COMMENT "Copying device hero assets for device-center")
-
 if(APPLE)
     # Ships the brand icon inside the .app and makes the previously unused
     # packaging/macos/Info.plist.in the bundle's real property list.
@@ -87,6 +80,10 @@ install(TARGETS sony-device-center
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE  DESTINATION .)
 
+# Qt's generated deployment script resolves only this application's QML
+# module graph and runtime dependencies. This replaces a raw macdeployqt scan
+# that copied unrelated Homebrew Qt plugins and produced an invalid bundle.
+
 if(WIN32)
     # A bare .exe cannot start without the Qt DLLs and QML module tree beside
     # it, so let windeployqt populate the install prefix at install time.
@@ -108,4 +105,3 @@ if(WIN32)
         message(WARNING "windeployqt not found - the Windows package will not include the Qt runtime.")
     endif()
 endif()
-

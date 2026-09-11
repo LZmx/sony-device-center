@@ -210,6 +210,16 @@ const DeviceAddress& FakeTransport::connectedAddress() const noexcept {
     return _connectedAddress;
 }
 
+void FakeTransport::setReportedGeneration(SdpGeneration generation) noexcept {
+    std::lock_guard lock(_mutex);
+    _reportedGeneration = generation;
+}
+
+std::optional<SdpGeneration> FakeTransport::sdpGeneration() const noexcept {
+    std::lock_guard lock(_mutex);
+    return _reportedGeneration;
+}
+
 void FakeDeviceDiscovery::addDevice(DiscoveredDevice device) {
     std::lock_guard lock(_mutex);
     _devices.push_back(std::move(device));

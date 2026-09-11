@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMetaObject>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -18,6 +19,7 @@
 #include <QVariantMap>
 #include <algorithm>
 #include <sstream>
+#include <thread>
 
 namespace sony::devicecenter {
 
@@ -26,6 +28,7 @@ DeviceCenterController::DeviceCenterController(QObject* parent)
     QSettings settings("SonyBridge", "SonyDeviceCenter");
     _currentLanguage = settings.value("language", "en").toString();
     _initService();
+    _startLiveRefresh();
     refreshDiscoveredDevices();
 }
 
@@ -147,6 +150,53 @@ void DeviceCenterController::_syncState() {
     }
     emit stateChanged();
     emit capabilitiesChanged();
+}
+
+void DeviceCenterController::_startLiveRefresh() {
+    if (_refreshTimer) {
+        return;
+    }
+    _refreshTimer = new QTimer(this);
+    _refreshTimer->setInterval(3000);
+    connect(_refreshTimer, &QTimer::timeout, this, &DeviceCenterController::_onRefreshTick);
+    _refreshTimer->start();
+}
+
+void DeviceCenterController::_onRefreshTick() {
+    if (_usingIpc) {
+        _syncState();
+        return;
+    }
+    if (!_directService) {
+        return;
+    }
+    if (_directService->isConnected() && _directService->activeDevice()) {
+        if (_refreshInFlight.exchange(true)) {
+            return;
+        }
+        // The headset takes several seconds to start answering after the
+        // RFCOMM link opens, so the connect-time refresh all times out and the
+        // initial state is stale defaults. Re-read everything on a worker
+        // thread once the device has settled, then push the updated snapshot
+        // into the UI. The session serializes commands internally, so this
+        // cannot race user actions.
+        auto service = _directService;
+        std::thread([this, service] {
+            try {
+                if (service->isConnected() && service->activeDevice()) {
+                    service->activeDevice()->refreshAll();
+                }
+            } catch (...) {
+            }
+            _refreshInFlight.store(false);
+            QMetaObject::invokeMethod(this, [this] { _syncState(); }, Qt::QueuedConnection);
+        }).detach();
+        return;
+    }
+    // Headset powered off or the Bluetooth link dropped: still refresh the
+    // cached UI state so it stops claiming the device is connected. The early
+    // return here used to leave _connected stuck at true.
+    _syncState();
 }
 
 QString DeviceCenterController::deviceName() const { return _deviceName; }

@@ -541,4 +541,6 @@ CPackSourceConfig.cmake
 *.msi
 *.AppImage
 Client/resources/devices/output/
+build-macos
+build-macos-debug
 

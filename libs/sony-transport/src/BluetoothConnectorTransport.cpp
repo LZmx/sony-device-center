@@ -34,6 +34,17 @@ bool BluetoothConnectorTransport::isConnected() const noexcept {
     return _connector && _connector->isConnected();
 }
 
+std::optional<SdpGeneration> BluetoothConnectorTransport::sdpGeneration() const noexcept {
+    if (!_connector || !_connector->isConnected()) {
+        return std::nullopt;
+    }
+    // The connector resolved the generation from the SDP service record while
+    // connecting (v1 UUID matched -> V1, v2 UUID matched -> V2).
+    return _connector->getProtocolVersion() == SonyProtocolVersion::V2
+        ? SdpGeneration::V2
+        : SdpGeneration::V1;
+}
+
 size_t BluetoothConnectorTransport::send(std::span<const std::byte> data) {
     if (!_connector || !_connector->isConnected()) {
         throw SonyException(SonyErrorCode::Disconnected, "Transport not connected");

@@ -2,7 +2,9 @@
 
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QVariantList>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -113,10 +115,15 @@ signals:
 private:
     void _initService();
     void _syncState();
+    void _startLiveRefresh();
+    void _onRefreshTick();
 
     std::unique_ptr<core::IpcClient> _ipcClient;
     std::shared_ptr<core::IDeviceService> _directService;
     bool _usingIpc{false};
+
+    QTimer* _refreshTimer{nullptr};
+    std::atomic<bool> _refreshInFlight{false};
 
     // Cached UI state
     QString _deviceName{""};

@@ -5,6 +5,7 @@
 #include "SonyError.h"
 
 #include <memory>
+#include <optional>
 
 class IBluetoothConnector;
 
@@ -21,6 +22,8 @@ public:
     [[nodiscard]] bool isConnected() const noexcept override;
     size_t send(std::span<const std::byte> data) override;
     size_t receive(std::span<std::byte> buffer) override;
+
+    [[nodiscard]] std::optional<SdpGeneration> sdpGeneration() const noexcept override;
 
     [[nodiscard]] IBluetoothConnector* connector() const noexcept;
 

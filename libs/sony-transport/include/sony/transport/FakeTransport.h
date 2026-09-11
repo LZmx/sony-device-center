@@ -54,10 +54,17 @@ public:
 
     [[nodiscard]] const DeviceAddress& connectedAddress() const noexcept;
 
+    // Reports a protocol generation (simulating a platform connector's SDP
+    // result) so SonyDevice can be tested for SDP-vs-name reconciliation.
+    void setReportedGeneration(SdpGeneration generation) noexcept;
+    [[nodiscard]] std::optional<SdpGeneration> sdpGeneration() const noexcept override;
+
 private:
     mutable std::mutex _mutex;
     bool _connected{false};
     DeviceAddress _connectedAddress;
+
+    std::optional<SdpGeneration> _reportedGeneration;
 
     std::deque<uint8_t> _incomingQueue;
     std::vector<std::vector<uint8_t>> _sentFrames;

@@ -94,7 +94,11 @@ private:
 
     std::optional<PendingRequest> _pendingRequest;
     std::deque<SonyFrame> _unmatchedFrames;
-    bool _hasAck{false};
+    // ACKs received by the reader that send() has not yet consumed. send()
+    // waits for this to be non-zero rather than resetting a boolean, so an ACK
+    // the reader processes before send() starts its wait is not lost and the
+    // send does not time out (a plain _hasAck bool raced the reader thread).
+    uint32_t _pendingAcks{0};
     uint8_t _expectedAckSeq{0};
 
     std::condition_variable _responseCv;
