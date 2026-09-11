@@ -4,6 +4,14 @@ project(SonyDeviceCenter VERSION 0.1.3 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set this for a distributable binary that runs on both Apple Silicon and
+# Intel Macs. All Qt and native dependency libraries must be universal too.
+option(SONY_MACOS_UNIVERSAL "Build universal arm64+x86_64 macOS binaries" OFF)
+if(APPLE AND SONY_MACOS_UNIVERSAL)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING
+        "Architectures to build for" FORCE)
+endif()
+
 option(ENABLE_SANITIZERS "Enable ASan and UBSan compiler instrumentation" OFF)
 if(ENABLE_SANITIZERS)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -14,6 +22,7 @@ if(ENABLE_SANITIZERS)
 endif()
 
 include(CTest)
+include(GNUInstallDirs)
 find_package(Threads REQUIRED)
 
 add_subdirectory(libs/sony-transport)
@@ -34,8 +43,6 @@ endif()
 if(NOT APPLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Client/CMakeLists.txt")
     add_subdirectory(Client)
 endif()
-
-include(GNUInstallDirs)
 
 if(WIN32)
     # The binaries link the MSVC runtime dynamically. Without these DLLs beside
@@ -89,8 +96,8 @@ elseif(WIN32)
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "Sony Device Center")
     set(CPACK_PACKAGE_EXECUTABLES "sony-device-center" "Sony Device Center")
 elseif(APPLE)
-    set(CPACK_GENERATOR "TGZ;DragNDrop")
+    set(CPACK_GENERATOR "DragNDrop;TGZ")
+    set(CPACK_DMG_VOLUME_NAME "Sony Device Center")
 endif()
 
 include(CPack)
-

@@ -12,6 +12,8 @@ set(CMAKE_AUTORCC ON)
 
 option(SONY_REQUIRE_QT
     "Fail configuration when Qt 6 is missing instead of skipping the desktop app" OFF)
+option(SONY_MACOS_DEPLOY_QT
+    "Bundle the Qt runtime and QML imports into the installed macOS app" ON)
 
 find_package(Qt6 COMPONENTS Core Gui Qml Quick QuickControls2 QUIET)
 
@@ -24,7 +26,6 @@ if(NOT Qt6_FOUND)
     message(WARNING "Qt 6 (Core, Gui, Qml, Quick, QuickControls2) not found — skipping sony-device-center target.")
     return()
 endif()
-
 
 add_executable(sony-device-center
     main.cpp
@@ -87,6 +88,31 @@ install(TARGETS sony-device-center
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE  DESTINATION .)
 
+if(APPLE AND SONY_MACOS_DEPLOY_QT)
+    # macdeployqt must run against the installed bundle so CPack's staging
+    # directory receives Qt frameworks, plugins, and all QML imports.
+    get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
+    find_program(MACDEPLOYQT_EXECUTABLE macdeployqt HINTS "${_qt_bin}")
+
+    if(MACDEPLOYQT_EXECUTABLE)
+        install(CODE "
+            execute_process(
+                COMMAND \"${MACDEPLOYQT_EXECUTABLE}\"
+                    \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/sony-device-center.app\"
+                    -qmldir=\"${CMAKE_CURRENT_SOURCE_DIR}/qml\"
+                    -always-overwrite
+                RESULT_VARIABLE _macdeployqt_result
+            )
+            if(NOT _macdeployqt_result EQUAL 0)
+                message(FATAL_ERROR \"macdeployqt failed with exit code \${_macdeployqt_result}\")
+            endif()
+        ")
+    else()
+        message(WARNING "macdeployqt not found - the macOS package will not include the Qt runtime.")
+    endif()
+endif()
+
 if(WIN32)
     # A bare .exe cannot start without the Qt DLLs and QML module tree beside
     # it, so let windeployqt populate the install prefix at install time.
@@ -108,4 +134,3 @@ if(WIN32)
         message(WARNING "windeployqt not found - the Windows package will not include the Qt runtime.")
     endif()
 endif()
-
