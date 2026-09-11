@@ -25,8 +25,6 @@ if(NOT Qt6_FOUND)
     return()
 endif()
 
-qt_standard_project_setup()
-
 add_executable(sony-device-center
     main.cpp
     src/DeviceCenterController.cpp
@@ -34,13 +32,6 @@ add_executable(sony-device-center
     src/I18nManager.cpp
     include/I18nManager.h
     qml.qrc
-)
-
-qt_add_qml_module(sony-device-center
-    URI SonyDeviceCenter
-    VERSION 1.0
-    QML_FILES
-        qml/Main.qml
 )
 
 target_compile_features(sony-device-center PRIVATE cxx_std_20)
@@ -92,12 +83,6 @@ install(TARGETS sony-device-center
 # Qt's generated deployment script resolves only this application's QML
 # module graph and runtime dependencies. This replaces a raw macdeployqt scan
 # that copied unrelated Homebrew Qt plugins and produced an invalid bundle.
-qt_generate_deploy_qml_app_script(
-    TARGET sony-device-center
-    OUTPUT_SCRIPT sony_device_center_deploy_script
-    NO_TRANSLATIONS
-)
-install(SCRIPT "${sony_device_center_deploy_script}")
 
 if(WIN32)
     # A bare .exe cannot start without the Qt DLLs and QML module tree beside

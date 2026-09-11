@@ -40,7 +40,7 @@ void SonyProtocolSession::start() {
         _streamBuffer.clear();
         _lastSeenDataSeq.reset();
         _unmatchedFrames.clear();
-        _hasAck = false;
+        _pendingAcks = 0;
         _pendingRequest.reset();
     }
     _startReader();
@@ -57,7 +57,7 @@ void SonyProtocolSession::disconnect() noexcept {
         _lastSeenDataSeq.reset();
         _unmatchedFrames.clear();
         _pendingRequest.reset();
-        _hasAck = false;
+        _pendingAcks = 0;
         _sequence.store(0);
         _ackCv.notify_all();
         _responseCv.notify_all();
@@ -195,7 +195,7 @@ void SonyProtocolSession::_handleDecodedFrame(const SonyFrame& frame) {
     if (frame.type == DataType::Ack) {
         Logger::debug(LogCategory::Session, "RX  ACK seq=" + std::to_string(frame.sequence));
         std::lock_guard lock(_sessionMtx);
-        _hasAck = true;
+        ++_pendingAcks;
         if (frame.sequence <= 1) {
             _sequence.store(frame.sequence);
         }
@@ -316,7 +316,6 @@ void SonyProtocolSession::send(const SonyFrame& frame, std::chrono::milliseconds
     {
         std::lock_guard lock(_sessionMtx);
         _expectedAckSeq = toSend.sequence;
-        _hasAck = false;
     }
 
     _writeFrame(toSend);
@@ -324,16 +323,16 @@ void SonyProtocolSession::send(const SonyFrame& frame, std::chrono::milliseconds
     auto deadline = std::chrono::steady_clock::now() + timeout;
     std::unique_lock lock(_sessionMtx);
     bool received = _ackCv.wait_until(lock, deadline, [this] {
-        return !_running.load() || !isConnected() || _hasAck;
+        return !_running.load() || !isConnected() || _pendingAcks > 0;
     });
 
     if (!isConnected() || !_running.load()) {
         throw SonyException(SonyErrorCode::Disconnected, "Transport disconnected while waiting for ACK");
     }
-    if (!received || !_hasAck) {
+    if (!received || _pendingAcks == 0) {
         throw SonyException(SonyErrorCode::Timeout, "Timeout waiting for ACK");
     }
-    _hasAck = false;
+    --_pendingAcks;
 }
 
 SonyFrame SonyProtocolSession::sendAndAwaitResponse(
@@ -356,7 +355,6 @@ SonyFrame SonyProtocolSession::sendAndAwaitResponse(
     {
         std::lock_guard lock(_sessionMtx);
         _expectedAckSeq = toSend.sequence;
-        _hasAck = false;
         _pendingRequest = PendingRequest{
             .expectedOpcode = retOpcode,
             .expectedSubtype = retSubtype,
@@ -396,7 +394,6 @@ SonyFrame SonyProtocolSession::sendAndAwaitResponse(
         throw SonyException(SonyErrorCode::Timeout, "Timeout waiting for response from device");
     }
 
-    _hasAck = false;
     SonyFrame resp = std::move(_pendingRequest->response);
     _pendingRequest.reset();
     return resp;

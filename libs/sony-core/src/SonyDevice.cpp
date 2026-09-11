@@ -50,6 +50,19 @@ void SonyDevice::connect(const transport::DeviceAddress& address, std::string_vi
     _session.reset();
 
     _transport->connect(address);
+
+    // SDP evidence beats the name heuristic. The platform connector resolves
+    // the service record while connecting, so a device that answered the v2
+    // UUID speaks the v2 command set even when its Bluetooth name is unknown
+    // to the registry (which otherwise falls back to v1 and drives a v2 link
+    // with v1 command layouts — silently, because the device never replies).
+    if (auto reported = _transport->sdpGeneration(); reported.has_value()) {
+        _version = (*reported == transport::SdpGeneration::V2)
+                       ? protocol::SonyProtocolVersion::V2
+                       : protocol::SonyProtocolVersion::V1;
+        _profile.protocol = _version;
+    }
+
     _setupSession();
 
     if (_protocol) {
@@ -140,6 +153,9 @@ void SonyDevice::refreshAll() {
     refreshNoiseControl();
     refreshEqualizer();
     refreshDsee();
+    refreshSpeakToChat();
+    refreshAdaptiveVolume();
+    refreshAutoPowerOff();
 }
 
 void SonyDevice::refreshBattery() {
@@ -198,6 +214,48 @@ void SonyDevice::refreshDsee() {
         _dispatcher.dispatch(protocol::DeviceStateChanged{snapshot()});
     } catch (const SonyException& ex) {
         Logger::debug(LogCategory::Device, "refreshDsee error: " + std::string(ex.what()));
+    }
+}
+
+void SonyDevice::refreshSpeakToChat() {
+    if (!_protocol) return;
+    try {
+        bool stc = _protocol->getSpeakToChat();
+        {
+            std::lock_guard lock(_stateMutex);
+            _state.speakToChat = stc;
+        }
+        _dispatcher.dispatch(protocol::DeviceStateChanged{snapshot()});
+    } catch (const SonyException& ex) {
+        Logger::debug(LogCategory::Device, "refreshSpeakToChat error: " + std::string(ex.what()));
+    }
+}
+
+void SonyDevice::refreshAdaptiveVolume() {
+    if (!_protocol) return;
+    try {
+        bool av = _protocol->getAdaptiveVolume();
+        {
+            std::lock_guard lock(_stateMutex);
+            _state.adaptiveVolume = av;
+        }
+        _dispatcher.dispatch(protocol::DeviceStateChanged{snapshot()});
+    } catch (const SonyException& ex) {
+        Logger::debug(LogCategory::Device, "refreshAdaptiveVolume error: " + std::string(ex.what()));
+    }
+}
+
+void SonyDevice::refreshAutoPowerOff() {
+    if (!_protocol) return;
+    try {
+        int apo = _protocol->getAutoPowerOff();
+        {
+            std::lock_guard lock(_stateMutex);
+            _state.autoPowerOff = apo;
+        }
+        _dispatcher.dispatch(protocol::DeviceStateChanged{snapshot()});
+    } catch (const SonyException& ex) {
+        Logger::debug(LogCategory::Device, "refreshAutoPowerOff error: " + std::string(ex.what()));
     }
 }
 

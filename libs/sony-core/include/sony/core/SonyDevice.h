@@ -47,6 +47,9 @@ public:
     void refreshNoiseControl();
     void refreshEqualizer();
     void refreshDsee();
+    void refreshSpeakToChat();
+    void refreshAdaptiveVolume();
+    void refreshAutoPowerOff();
 
     // Control operations
     void setNoiseControl(const protocol::NoiseControlState& nc);

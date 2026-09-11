@@ -69,6 +69,19 @@ public:
                                 .sequence = _nextRespSeq(),
                                 .payload = {0xe7, 0x01, 0x00}
                             }));
+                        } else if (op == 0xf6) { // Speak-to-Chat (0c) / Adaptive volume (0a) probes
+                            uint8_t sub = (frame.payload.size() >= 2) ? frame.payload[1] : 0x00;
+                            queueIncoming(FrameCodec::encode(SonyFrame{
+                                .type = DataType::DataMdr,
+                                .sequence = _nextRespSeq(),
+                                .payload = {0xf7, sub, 0x00}
+                            }));
+                        } else if (op == 0x26) { // Auto power-off probe
+                            queueIncoming(FrameCodec::encode(SonyFrame{
+                                .type = DataType::DataMdr,
+                                .sequence = _nextRespSeq(),
+                                .payload = {0x27, 0x05, 0x00, 0x00}
+                            }));
                         }
                     }
                 }

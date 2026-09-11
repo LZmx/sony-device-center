@@ -54,6 +54,7 @@ void ProtocolV2::initDevice() {
 BatteryState ProtocolV2::getBattery() {
     // V2 battery request uses opcode 0x22
     BatteryState state;
+    bool gotData = false;
 
     // 1. Single battery (over-ear / main): GET 22 00 -> RET 23 00 <level> <charging>
     try {
@@ -83,6 +84,7 @@ BatteryState ProtocolV2::getBattery() {
             state.right = static_cast<int>(resp.payload[4]);
             state.main = std::min(*state.left, *state.right);
             state.charging = (resp.payload[3] == 1 || resp.payload[5] == 1);
+            gotData = true;
         }
     } catch (const SonyException&) {}
 
@@ -96,8 +98,16 @@ BatteryState ProtocolV2::getBattery() {
         );
         if (resp.payload.size() >= 4) {
             state.caseBattery = static_cast<int>(resp.payload[2]);
+            gotData = true;
         }
     } catch (const SonyException&) {}
+
+    // No sub-inquiry answered. Throwing lets the caller keep the previous
+    // state instead of clobbering a notification-driven value with an empty
+    // default (which the UI renders as 0%).
+    if (!gotData) {
+        throw SonyException(SonyErrorCode::Timeout, "Battery inquiry got no response on any sub-type");
+    }
 
     return state;
 }
