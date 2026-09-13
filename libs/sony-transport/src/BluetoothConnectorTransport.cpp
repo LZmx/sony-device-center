@@ -109,7 +109,9 @@ std::vector<DiscoveredDevice> BluetoothConnectorDiscovery::discover() {
     for (const auto& dev : bldevs) {
         result.push_back(DiscoveredDevice{
             .name = dev.name,
-            .address = DeviceAddress(dev.mac)
+            .address = DeviceAddress(dev.mac),
+            .paired = dev.paired,
+            .connected = dev.connected
         });
     }
     return result;

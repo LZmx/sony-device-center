@@ -4,6 +4,7 @@
 #include "sony/transport/ITransport.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,8 @@ struct DiscoveredDevice {
     std::string address;
     std::string name;
     SonyProtocolVersion version{SonyProtocolVersion::V2};
+    std::optional<bool> paired;
+    std::optional<bool> connected;
 };
 
 class IDeviceService {

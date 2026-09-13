@@ -1,6 +1,8 @@
 #include "sony/core/DeviceService.h"
 #include "sony/protocol/DeviceProfileRegistry.h"
 
+#include <algorithm>
+
 namespace sony::core {
 
 DeviceService::DeviceService(
@@ -24,9 +26,18 @@ std::vector<DiscoveredDevice> DeviceService::discoverDevices() {
         result.push_back(DiscoveredDevice{
             .address = dev.address.str(),
             .name = dev.name,
-            .version = profile.protocol
+            .version = profile.protocol,
+            .paired = dev.paired,
+            .connected = dev.connected
         });
     }
+    // Show connected devices first; keep everything else stable by address.
+    std::stable_sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+        if (a.connected.value_or(false) != b.connected.value_or(false)) {
+            return a.connected.value_or(false);
+        }
+        return a.address < b.address;
+    });
     return result;
 }
 

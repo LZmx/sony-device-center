@@ -74,15 +74,21 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${SonyDeviceCenter_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${SonyDeviceCenter_VERSION}"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../../packaging/macos/Info.plist.in")
+
+    # `cmake --build build --target dmg` produces the drag-to-Applications
+    # disk image: macdeployqt, sonyd/sonyctl folded into the bundle, signing,
+    # dmgbuild. See packaging/macos/build-dmg.sh for the knobs.
+    add_custom_target(dmg
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../../packaging/macos/build-dmg.sh" "${CMAKE_BINARY_DIR}"
+        DEPENDS sony-device-center sonyd sonyctl
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        COMMENT "Building the macOS disk image"
+        VERBATIM)
 endif()
 
 install(TARGETS sony-device-center
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     BUNDLE  DESTINATION .)
-
-# Qt's generated deployment script resolves only this application's QML
-# module graph and runtime dependencies. This replaces a raw macdeployqt scan
-# that copied unrelated Homebrew Qt plugins and produced an invalid bundle.
 
 if(WIN32)
     # A bare .exe cannot start without the Qt DLLs and QML module tree beside

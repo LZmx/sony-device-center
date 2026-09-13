@@ -1,7 +1,8 @@
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QIcon>
+#include <QQuickStyle>
 
 #include "DeviceCenterController.h"
 
@@ -19,6 +20,10 @@ int main(int argc, char *argv[]) {
     // The raster form is used deliberately: QIcon can only read the SVG brand
     // asset when Qt's qsvg image plugin is deployed alongside the binary.
     app.setWindowIcon(QIcon(":/resources/brand/app-icon.png"));
+
+    // Pin the Basic Controls style so the DMG packaging script can strip the
+    // other QtQuick Controls styles (20 MB the app never loads).
+    QQuickStyle::setStyle("Basic");
 
     sony::devicecenter::DeviceCenterController controller;
 

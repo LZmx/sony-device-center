@@ -83,7 +83,7 @@ that is the only way this table improves. `sonyctl -v info` output is ideal.
 - **Bluetooth Stack**:
   - **Linux**: BlueZ (`libbluetooth-dev`, `libdbus-1-dev`)
   - **Windows**: Native Winsock & Bluetooth (`ws2_32.lib`, `bthprops.lib` included with Windows SDK)
-  - **macOS**: `IOBluetooth` and `Foundation` frameworks
+  - **macOS**: `IOBluetooth` and `Foundation` (system frameworks — nothing to install), Xcode Command Line Tools, and Homebrew with `cmake`, `ninja`, `qt`, `qtdeclarative`
 
 ### Linux (Ubuntu, Debian, Fedora, Arch)
 
@@ -120,6 +120,75 @@ From a **Developer Command Prompt for VS 2022** (or PowerShell with MSVC):
 cmake -B build -S . -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64" -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
+
+### macOS (Apple Silicon & Intel)
+
+1. **Install prerequisites** (Xcode Command Line Tools, Homebrew, CMake, Ninja, Qt 6):
+
+   ```bash
+   # Xcode Command Line Tools (provides clang, codesign, make, git)
+   xcode-select --install
+
+   # Homebrew
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+   # Build tools and the Qt 6 runtime (qt = QtBase, qtdeclarative = QML/Quick)
+   brew install cmake ninja qt qtdeclarative
+   ```
+
+   The Bluetooth stack uses the system `IOBluetooth`/`Foundation` frameworks — nothing extra to install.
+
+2. **Configure and compile**:
+   ```bash
+   cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --parallel
+   ```
+
+3. **Run tests** (no Bluetooth hardware required):
+   ```bash
+   ctest --test-dir build --output-on-failure
+   ```
+
+4. **Run the app**:
+   ```bash
+   open build/apps/device-center/sony-device-center.app
+   ```
+   On first launch macOS asks for **Bluetooth access** — grant it (the
+   permission prompt comes from `NSBluetoothAlwaysUsageDescription` in the
+   bundle). The app auto-connects to the first paired Sony device; if it
+   picks the wrong one, select your headset in the **Device Switcher**.
+
+#### Building the macOS DMG
+
+`cmake --build build --target dmg` produces a drag-to-Applications disk image
+with a styled window (`dmgbuild`), folding `sonyd` and `sonyctl` into the app
+bundle so one signature covers all three binaries:
+
+```bash
+pip3 install dmgbuild            # once; the DMG layout tool
+cmake --build build --parallel   # builds the app, daemon, and CLI
+cmake --build build --target dmg
+# -> build/sony-device-center-<version>-macOS.dmg
+```
+
+The script (`packaging/macos/build-dmg.sh`) runs `macdeployqt -qmldir` to
+bundle the Qt runtime and QML modules, strips plugins the app never loads
+(SQL drivers, unused Controls styles — the app pins the Basic style), ad-hoc
+signs the bundle, and verifies it. `packaging/macos/verify-dmg.sh` mounts the
+result and asserts the bundle carries its own Qt, the daemon and CLI, and the
+`Applications` shortcut.
+
+Open the DMG and drag **Sony Device Center.app** into the `Applications` folder.
+
+> **Notes**
+> - Signing is off by default. For distribution, set
+>   `SONY_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"`
+>   (adds the hardened runtime + timestamp) and `SONY_NOTARY_PROFILE` to also
+>   submit to Apple with `xcrun notarytool store-credentials`.
+> - An ad-hoc-signed app's first launch from `/Applications` may be blocked by
+>   Gatekeeper — right-click → **Open** to run it.
+> - `macdeployqt` may print a warning about Homebrew `libbrotli`/`libwebp`
+>   rpaths; the bundle is still complete and the app runs.
 
 ---
 
@@ -200,7 +269,7 @@ Packets transmitted over Bluetooth RFCOMM follow the Sony MDR framed format:
 
 ### Automated Test Suite
 
-The test suite runs 106 Catch2 unit and integration tests without requiring Bluetooth hardware:
+The test suite runs 116 Catch2 unit and integration tests without requiring Bluetooth hardware:
 - Frame framing, escaping, checksums, and corruption recovery
 - Fragmentation handling and multi-frame stream parsing
 - V1 vs. V2 command byte layouts and safe opcode handling
@@ -229,7 +298,7 @@ This project was written with heavy AI assistance, and it is worth being direct 
 what that means for anyone deciding whether to trust or contribute to it.
 
 What it does **not** mean is that the behaviour is unverified. The protocol layer has
-111 tests that run without any hardware, covering framing, escaping, checksums,
+116 tests that run without any hardware, covering framing, escaping, checksums,
 fragmentation, and the V1/V2 generation boundary — including a regression test proving
 a legacy device is never sent opcode `0x22`, which means POWER OFF there and BATTERY on
 newer models. Sanitizers run in CI on every push.
